@@ -24,30 +24,59 @@ app.post('/BuyTickets', async (req, res) => {
 	let requestedTicketsNumber = req.body.requestedTicketsNumber
 	let tickets = req.body.tickets
 	let newTickets = []
+	const ticketsBought = []
 	logReq('BuyTickets', { requestedTicketsNumber })
 
-	for (let i = 0; i < tickets.length; i++) {
-		if (!requestedTicketsNumber) break
+	logReq('AddTicketSalesEvent')
+	await fetch('http://localhost:4007/AddTicketSalesEvent', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			type: 'passengers_came',
+			requestedTicketsNumber,
+		}),
+	})
 
-		if (
-			new Date(new Date(tickets[i].time).getTime() - 20 * 60000) >
-			new Date(time)
-		) {
-			const ticketsToBuyOnCurrentFlight = Math.min(
-				tickets[i].amount,
-				getRandomInt(requestedTicketsNumber)
-			)
-			newTickets = updateFlight(
-				{
-					flight: tickets[i].flight,
-					time: tickets[i].time,
-					amount: tickets[i].amount - ticketsToBuyOnCurrentFlight,
-					sold: tickets[i].sold + ticketsToBuyOnCurrentFlight,
-					registered: tickets[i].registered,
-				},
-				tickets
-			)
+	if (requestedTicketsNumber) {
+		for (let i = 0; i < tickets.length; i++) {
+			if (
+				new Date(new Date(tickets[i].time).getTime() - 20 * 60000) >
+				new Date(time)
+			) {
+				const ticketsToBuyOnCurrentFlight = Math.min(
+					tickets[i].amount,
+					getRandomInt(requestedTicketsNumber)
+				)
+				if (ticketsToBuyOnCurrentFlight > 0) {
+					ticketsBought.push({
+						flight: tickets[i].flight,
+						tickets: ticketsToBuyOnCurrentFlight,
+					})
+				}
+				newTickets = updateFlight(
+					{
+						flight: tickets[i].flight,
+						time: tickets[i].time,
+						amount: tickets[i].amount - ticketsToBuyOnCurrentFlight,
+						sold: tickets[i].sold + ticketsToBuyOnCurrentFlight,
+						registered: tickets[i].registered,
+					},
+					tickets
+				)
+			}
 		}
+	}
+
+	if (ticketsBought.length > 0) {
+		logReq('AddTicketSalesEvent')
+		await fetch('http://localhost:4007/AddTicketSalesEvent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				type: 'tickets_bought',
+				ticketsBought,
+			}),
+		})
 	}
 
 	logRes('BuyTickets', { newTickets })
